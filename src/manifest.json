@@ -1,0 +1,21 @@
+{
+  "name": "Santa Cruz Twitter",
+  "short_name": "Santa Cruz Twitter",
+  "start_url": "/",
+  
+  "icons": [
+    {
+      "src": "/src/images/manifest/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/src/images/manifest/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "theme_color": "#2f95d9",
+  "background_color": "#2f95d9",
+  "display": "standalone"
+}

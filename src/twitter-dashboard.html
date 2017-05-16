@@ -1,0 +1,348 @@
+<html><head><link rel="import" href="/bower_components/polymer/polymer-element.html">
+<link rel="import" href="/bower_components/polymer/lib/elements/dom-if.html">
+<link rel="import" href="/bower_components/polymer/lib/elements/dom-repeat.html">
+<link rel="import" href="/bower_components/polymer/lib/utils/debounce.html">
+<link rel="import" href="/bower_components/polymer/lib/utils/async.html">
+
+<link rel="import" href="/bower_components/polymerfire/firebase-document.html">
+<link rel="import" href="/bower_components/polymerfire/firebase-query.html">
+
+<link rel="import" href="/bower_components/app-storage/app-indexeddb-mirror/app-indexeddb-mirror.html">
+
+<link rel="import" href="/bower_components/vaadin-grid/vaadin-grid.html">
+<link rel="import" href="/bower_components/vaadin-grid/vaadin-grid-column.html">
+<link rel="import" href="/bower_components/vaadin-grid/vaadin-grid-sorter.html">
+<link rel="import" href="/bower_components/vaadin-grid/vaadin-grid-filter.html">
+
+<link rel="import" href="/bower_components/iron-icons/iron-icons.html">
+<link rel="import" href="/bower_components/iron-icons/image-icons.html">
+
+
+<link rel="import" href="santacruz-handler.html">
+
+<script src="twitter-accounts.js"></script>
+
+
+</head><body><dom-module id="twitter-dashboard">
+  <template>
+    <style>
+      :host {
+        display: block;
+      }
+
+    vaadin-grid {
+      height: 100%;
+      border: 0px;
+    }
+
+    vaadin-grid#material {
+
+      font-family: Roboto, sans-serif;
+      --divider-color: rgba(0, 0, 0, var(--dark-divider-opacity));
+
+      --vaadin-grid-cell: {
+        padding: 0;
+      };
+
+      --vaadin-grid-header-cell: {
+        height: 64px;
+        color: rgba(0, 0, 0, var(--dark-secondary-opacity));
+        font-size: 11px;
+      };
+
+      --vaadin-grid-body-cell: {
+        height: 48px;
+        color: rgba(0, 0, 0, var(--dark-primary-opacity));
+        font-size: 12px;
+      };
+
+      --vaadin-grid-body-row-hover-cell: {
+        background-color: var(--paper-grey-200);
+      };
+
+      --vaadin-grid-body-row-selected-cell: {
+        background-color: var(--paper-grey-100);
+      };
+
+      --vaadin-grid-focused-cell: {
+        box-shadow: none;
+        font-weight: bold;
+      };
+    }
+
+    vaadin-grid#material .cell {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding-right: 56px;
+    }
+
+    vaadin-grid#material .cell.last {
+      padding-right: 24px;
+    }
+
+    vaadin-grid#material .cell.numeric {
+      text-align: right;
+    }
+
+    vaadin-grid#material vaadin-grid-sorter {
+      --vaadin-grid-sorter-arrow: {
+      };
+    }
+
+    vaadin-grid#material vaadin-grid-sorter .cell {
+      flex: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    vaadin-grid#material vaadin-grid-sorter iron-icon {
+      transform: scale(0.8);
+    }
+
+    vaadin-grid#material vaadin-grid-sorter:not([direction]) iron-icon {
+      color: rgba(0, 0, 0, var(--dark-disabled-opacity));
+    }
+
+    vaadin-grid#material vaadin-grid-sorter[direction] {
+      color: rgba(0, 0, 0, vartwitter(--dark-primary-opacity));
+    }
+
+    vaadin-grid#material vaadin-grid-sorter[direction=desc] iron-icon {
+      transform: scale(0.8) rotate(180deg);
+    }
+
+    vaadin-grid .details {
+      height: 400px;
+    }
+
+    a {
+      color: var(--app-primary-color);
+      text-decoration: none;
+    }
+
+    .grid__column__timestamp {
+      margin-left: 12px;
+    }
+
+    .grid__column__timestamp.content, .grid__column__expandicon {
+      color: rgba(0,0,0,0.38);
+    }
+  </style>
+  
+    <app-indexeddb-mirror key="tweets" data="{{tweets}}" persisted-data="{{localTweets}}">
+    </app-indexeddb-mirror>
+    
+    
+    <firebase-query id="query" path="/tweets" data="{{tweets}}" order-by-child="timestamp" disabled="{{disabled}}" start-at="{{dateStart}}" end-at="{{dateEnd}}">
+    </firebase-query>
+    
+    <vaadin-grid id="material" items="{{localTweets}}">
+      
+      <vaadin-grid-column width="120px" flex-grow="0">
+        <template class="header">
+          <span class="grid__column__timestamp">
+            <vaadin-grid-sorter path="timestamp">Fecha</vaadin-grid-sorter>
+          </span>
+        </template>
+        <template>
+          <span class="grid__column__timestamp content">
+            [[_timestamp2moment(item.timestamp)]]
+            <!--[[item.timestamp]]-->
+          </span>
+        </template>
+      </vaadin-grid-column>
+      
+      <vaadin-grid-column width="130px" flex-grow="0">
+        <template>
+          [[_account_nickname(item.user_id)]]
+        </template>
+      </vaadin-grid-column> 
+
+      <vaadin-grid-column>
+        <template class="header">
+          <vaadin-grid-filter aria-label="Texto" path="text" value="[[_filterText]]">
+            <input placeholder="Buscar texto..." value="{{_filterText::input}}" focus-target="">
+          </vaadin-grid-filter>
+        </template>
+
+        <template>[[item.text]]</template>
+      </vaadin-grid-column> 
+
+      <vaadin-grid-column width="36px" flex-grow="0">
+        <template> 
+          <template is="dom-if" if="[[item.has_media]]">
+            <iron-icon icon="image:photo-camera"></iron-icon>
+          </template>
+        </template>
+      </vaadin-grid-column> 
+
+      <vaadin-grid-column width="48px" flex-grow="0">
+        <template class="header">
+          <span>
+            <vaadin-grid-sorter path="favorite_count">FAV</vaadin-grid-sorter>
+          </span>
+        </template>
+        <template>
+          <span>
+            [[item.favorite_count]]
+          </span>
+        </template>
+      </vaadin-grid-column> 
+      
+      <vaadin-grid-column width="48px" flex-grow="0">
+        <template class="header">
+          <span>
+            <vaadin-grid-sorter path="retweet_count">RT</vaadin-grid-sorter>
+          </span>
+        </template>
+        <template>[[item.retweet_count]]</template>
+      </vaadin-grid-column> 
+
+      <vaadin-grid-column width="36px" flex-grow="0">
+        <template>
+          <a target="_blank" href="[[twitter_url]][[_account_username(item.user_id)]]/status/[[item.$key]]">
+            <iron-icon icon="icons:open-in-new"></iron-icon>
+          </a>
+        </template>
+      </vaadin-grid-column> 
+
+      <vaadin-grid-column width="36px" flex-grow="0">
+        <template>
+          <span class="grid__column__expandicon">
+            <iron-icon icon="icons:{{_expandIconState(expanded)}}"></iron-icon>
+          </span>
+        </template>http://127.0.0.1:8081/
+      </vaadin-grid-column> 
+    </vaadin-grid>
+
+  </template>
+  
+  
+  <script>
+    class TwitterDashboard extends Polymer.Element {
+
+      static get is() { return 'twitter-dashboard'; }
+      
+      static get properties() {
+        return {
+          twitter_url : {
+            type: String,
+            value: "https://www.twitter.com/"
+          },
+          tweets: {
+            type: Array,
+            value: function() {return [];}
+          },
+          localTweets: {
+            type: Array,
+            value: function() {return [];}
+          },
+          user_filtered: {
+            type: String,
+            value: function() {return "828379286058975232";}
+          },
+          disabled: {
+            type: Boolean,
+            value: false
+          },
+          dateStart: {
+            type: Number,
+            observer: '_onDateChanged',
+            reflectToAttribute: true
+          },
+          dateEnd: {
+            type: Number,
+            observer: '_onDateChanged',
+            reflectToAttribute: true
+          }
+        };
+      }
+      
+      _updateFirebaseQuery() {
+        console.log("START: " + this.dateStart);
+        console.log("END: " + this.dateEnd);
+          
+        if(this.dateStart == undefined || this.dateEnd == undefined) {
+          console.log("DATES UNDEFINED");
+          return
+        }
+        
+        this.disabled = false;
+        console.log(this.disabled);
+      }
+      
+      _onDateChanged(newValue, oldValue) {
+        console.log("date: " + newValue);
+        this._debouncer = Polymer.Debouncer.debounce(this._debouncer, Polymer.Async.timeOut.after(100), () => { this._updateFirebaseQuery()});
+      }
+      
+      
+  
+      
+      /*
+      ready() {
+        super.ready();
+        
+        this.$.material.addEventListener('mousewheel', function(e) {
+          e.stopPropagation();
+        }, {passive: true});
+      
+        this.$.material.addEventListener('touchmove', function(e) {
+          e.stopPropagation();
+        }, {passive: true});http://127.0.0.1:8081/
+        
+      }
+      */
+      
+      _onActiveItemChanged(e) {
+        if(thitweets_datas.changedEvents == undefined)
+          console.log("FIRST EVENT");
+        else {
+          console.log("SHIT HITS THE FAN");
+          //this.$.material.expandedItems = [e.detail.value];
+          }
+      }
+
+      _expandIconState(state) {
+        return state ? 'expand-less' : 'expand-more'
+      }
+
+      _timestamp2moment(timestamp) {
+        if(timestamp == undefined)
+            return false;
+        moment.locale('es');
+        var m = moment(timestamp * 1000);
+        var result = m.fromNow();
+        return(result);
+      }
+      
+      _account_nickname(fb_id) {
+        if(fb_id == undefined)
+            return false;
+        
+        return (twitter_accounts[fb_id]["nickname"]);
+      }
+      
+      _account_username(fb_id) {
+        if(fb_id == undefined)
+            return false;
+        
+        return (twitter_accounts[fb_id]["username"]);
+      }
+      
+      _to_string(number) {
+        return number.toString();
+      }
+      
+      _onTimestampChanged(newValue, oldValue) {
+        if(this.timestamp_start != undefined && this.timestamp_end != undefined) {
+            this.disabled = false;
+        }
+      }
+    }
+    
+    window.customElements.define(TwitterDashboard.is, TwitterDashboard);
+  </script>
+</dom-module>
+</body></html>
